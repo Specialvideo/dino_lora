@@ -264,6 +264,10 @@ def train_dino(args):
     )
     start_epoch = to_restore["epoch"]
 
+    print("Using LoRA")
+    lora.mark_only_lora_as_trainable(student)
+    lora.mark_only_lora_as_trainable(teacher)
+
     start_time = time.time()
     print("Starting DINO training !")
     for epoch in range(start_epoch, args.epochs):

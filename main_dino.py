@@ -87,7 +87,7 @@ def get_args_parser():
     parser.add_argument('--clip_grad', type=float, default=3.0, help="""Maximal parameter
         gradient norm if using gradient clipping. Clipping with norm .3 ~ 1.0 can
         help optimization for larger ViT architectures. 0 for disabling.""")
-    parser.add_argument('--batch_size_per_gpu', default=64, type=int,
+    parser.add_argument('--batch_size_per_gpu', default=128, type=int,
         help='Per-GPU batch-size : number of distinct images loaded on one GPU.')
     parser.add_argument('--epochs', default=100, type=int, help='Number of epochs of training.')
     parser.add_argument('--freeze_last_layer', default=1, type=int, help="""Number of epochs
@@ -266,7 +266,8 @@ def train_dino(args):
 
     print("Using LoRA")
     lora.mark_only_lora_as_trainable(student)
-    lora.mark_only_lora_as_trainable(teacher)
+    print(f"Student trainable parameters : {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
+    print(f"Teacher trainable parameters : {sum(p.numel() for p in teacher.parameters() if p.requires_grad)}")
 
     start_time = time.time()
     print("Starting DINO training !")

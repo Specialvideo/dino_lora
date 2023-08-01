@@ -76,9 +76,9 @@ class Attention(nn.Module):
         self.scale = qk_scale or head_dim ** -0.5
 
         # self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        self.qkv = lora.MergedLinear(dim, 3*dim, r=16, enable_lora=[True, False, True], bias=qkv_bias)
+        self.qkv = lora.MergedLinear(dim, 3*dim, r=32, enable_lora=[True, False, True], bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = lora.Linear(dim, dim, r=32)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x):

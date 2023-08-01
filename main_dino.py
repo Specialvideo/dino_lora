@@ -34,6 +34,8 @@ import utils
 import vision_transformer as vits
 from vision_transformer import DINOHead
 
+import loralib as lora
+
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(torchvision_models.__dict__[name]))
@@ -203,7 +205,7 @@ def train_dino(args):
     else:
         # teacher_without_ddp and teacher are the same thing
         teacher_without_ddp = teacher
-    student = nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu])
+    student = nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu], find_unused_parameters=True)
     # teacher and student start with the same weights
     teacher_without_ddp.load_state_dict(student.module.state_dict())
     # there is no backpropagation through the teacher, so no need for gradients
@@ -264,10 +266,9 @@ def train_dino(args):
     )
     start_epoch = to_restore["epoch"]
 
-    print("Using LoRA")
+    print(f"Student trainable parameters (before LoRA): {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
     lora.mark_only_lora_as_trainable(student)
-    print(f"Student trainable parameters : {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
-    print(f"Teacher trainable parameters : {sum(p.numel() for p in teacher.parameters() if p.requires_grad)}")
+    print(f"Student trainable parameters (after LoRA): {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
 
     start_time = time.time()
     print("Starting DINO training !")

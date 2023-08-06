@@ -36,6 +36,17 @@ from vision_transformer import DINOHead
 
 import loralib as lora
 
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.fully_sharded_data_parallel import (
+    CPUOffload,
+    BackwardPrefetch,
+)
+from torch.distributed.fsdp.wrap import (
+    size_based_auto_wrap_policy,
+    enable_wrap,
+    wrap,
+)
+
 torchvision_archs = sorted(name for name in torchvision_models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(torchvision_models.__dict__[name]))
@@ -60,7 +71,7 @@ def get_args_parser():
         help="""Whether or not to weight normalize the last layer of the DINO head.
         Not normalizing leads to better performance but can make the training unstable.
         In our experiments, we typically set this paramater to False with vit_small and True with vit_base.""")
-    parser.add_argument('--momentum_teacher', default=0.996, type=float, help="""Base EMA
+    parser.add_argument('--momentum_teacher', default=0.9995, type=float, help="""Base EMA
         parameter for teacher update. The value is increased to 1 during training with cosine schedule.
         We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256.""")
     parser.add_argument('--use_bn_in_head', default=False, type=utils.bool_flag,
@@ -156,6 +167,11 @@ def train_dino(args):
     )
     print(f"Data loaded: there are {len(dataset)} images.")
 
+    # Added FSDP
+    my_auto_wrap_policy = functools.partial(
+        size_based_auto_wrap_policy, min_num_params=100
+    )
+
     # ============ building student and teacher networks ... ============
     # we changed the name DeiT-S for ViT-S to avoid confusions
     args.arch = args.arch.replace("deit", "vit")
@@ -200,12 +216,14 @@ def train_dino(args):
         teacher = nn.SyncBatchNorm.convert_sync_batchnorm(teacher)
 
         # we need DDP wrapper to have synchro batch norms working...
-        teacher = nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
+        # teacher = nn.parallel.DistributedDataParallel(teacher, device_ids=[args.gpu])
+        teacher = FSDP(teacher, fsdp_auto_wrap_policy=my_auto_wrap_policy)
         teacher_without_ddp = teacher.module
     else:
         # teacher_without_ddp and teacher are the same thing
         teacher_without_ddp = teacher
-    student = nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu], find_unused_parameters=True)
+    # student = nn.parallel.DistributedDataParallel(student, device_ids=[args.gpu], find_unused_parameters=True)
+    student = FSDP(student, fsdp_auto_wrap_policy=my_auto_wrap_policy)
     # teacher and student start with the same weights
     teacher_without_ddp.load_state_dict(student.module.state_dict())
     # there is no backpropagation through the teacher, so no need for gradients
@@ -267,7 +285,7 @@ def train_dino(args):
     start_epoch = to_restore["epoch"]
 
     print(f"Student trainable parameters (before LoRA): {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
-    lora.mark_only_lora_as_trainable(student)
+    lora.mark_only_lora_as_trainable(student, bias='all')
     print(f"Student trainable parameters (after LoRA): {sum(p.numel() for p in student.parameters() if p.requires_grad)}")
 
     start_time = time.time()

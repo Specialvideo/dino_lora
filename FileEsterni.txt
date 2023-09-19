@@ -1,0 +1,10 @@
+Queste sono le cartelle/i files non committate/i, 
+le trovi componendo il primo path con il secondo.
+Se le vuoi utilizzare le puoi mettere all'interno della cartella contenente questo file.
+
+\\fileserver.sve.private\commesse\tesi\RiccardoAlberghi\dino_lora
+./
+dino_vit_small_16_pizza
+dino_vit_small_16_top
+pizze
+Readme.txt
